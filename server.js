@@ -413,17 +413,23 @@ function parseFilePath(req) {
 // Create directory
 app.post('/api/directory', requireAuth, async (req, res) => {
   try {
+    console.log('=== Directory Creation Request ===');
+    console.log('Request body:', JSON.stringify(req.body));
+    
     const { path: dirPath } = req.body;
     
     if (!dirPath || !dirPath.trim()) {
+      console.log('ERROR: Directory path is missing or empty');
       return res.status(400).json({ error: 'Directory path is required' });
     }
     
     // Trim and normalize the path
     const normalizedPath = dirPath.trim().replace(/^\/+|\/+$/g, ''); // Remove leading/trailing slashes
+    console.log('Normalized path:', normalizedPath);
     
     // Security: prevent path traversal
     if (normalizedPath.includes('..') || normalizedPath.includes('//')) {
+      console.log('ERROR: Invalid path (contains .. or //)');
       return res.status(400).json({ error: 'Invalid directory path' });
     }
     
@@ -431,40 +437,71 @@ app.post('/api/directory', requireAuth, async (req, res) => {
     const fullPath = path.join('/www', normalizedPath);
     const resolvedPath = path.resolve(fullPath);
     
+    console.log(`Full path: ${fullPath}`);
+    console.log(`Resolved path: ${resolvedPath}`);
+    console.log(`Expected base: ${path.resolve('/www')}`);
+    
     // Ensure the path is within /www directory
     if (!resolvedPath.startsWith(path.resolve('/www'))) {
+      console.log('ERROR: Path is outside /www directory');
       return res.status(400).json({ error: 'Invalid directory path' });
     }
-    
-    console.log(`Creating directory: ${fullPath} (resolved: ${resolvedPath})`);
     
     // Check if directory already exists
     try {
       const stats = await fs.stat(fullPath);
+      console.log('Directory/file already exists:', stats.isDirectory() ? 'directory' : 'file');
       if (stats.isDirectory()) {
         return res.status(409).json({ error: 'Directory already exists' });
       }
       return res.status(409).json({ error: 'A file with this name already exists' });
     } catch (e) {
       // Directory doesn't exist, create it
-      console.log(`Directory doesn't exist, creating: ${fullPath}`);
+      console.log('Directory doesn\'t exist, will create:', fullPath);
+    }
+    
+    // Check /www directory permissions first
+    try {
+      await fs.access('/www', fs.constants.W_OK);
+      console.log('/www directory is writable');
+    } catch (accessError) {
+      console.error('ERROR: /www directory is not writable:', accessError.message);
+      return res.status(500).json({ error: '/www directory is not writable', details: accessError.message });
     }
     
     // Create directory recursively (creates parent directories if needed)
-    await fs.mkdir(fullPath, { recursive: true });
-    
-    // Verify it was created
-    const stats = await fs.stat(fullPath);
-    if (!stats.isDirectory()) {
-      return res.status(500).json({ error: 'Failed to create directory' });
+    console.log('Attempting to create directory:', fullPath);
+    try {
+      await fs.mkdir(fullPath, { recursive: true });
+      console.log('mkdir() call completed');
+    } catch (mkdirError) {
+      console.error('ERROR in mkdir():', mkdirError.message);
+      console.error('mkdir() error stack:', mkdirError.stack);
+      return res.status(500).json({ error: 'Failed to create directory', details: mkdirError.message, code: mkdirError.code });
     }
     
-    console.log(`Directory created successfully: ${fullPath}`);
+    // Verify it was created
+    try {
+      const stats = await fs.stat(fullPath);
+      if (!stats.isDirectory()) {
+        console.error('ERROR: Created path is not a directory');
+        return res.status(500).json({ error: 'Failed to create directory - path exists but is not a directory' });
+      }
+      console.log('✓ Directory verified successfully:', fullPath);
+    } catch (statError) {
+      console.error('ERROR: Could not verify directory creation:', statError.message);
+      return res.status(500).json({ error: 'Directory creation may have failed - cannot verify', details: statError.message });
+    }
+    
+    console.log(`✓ Directory created successfully: ${fullPath}`);
     res.json({ success: true, message: 'Directory created successfully', path: normalizedPath });
   } catch (error) {
-    console.error('Error creating directory:', error);
+    console.error('ERROR creating directory:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
     console.error('Error stack:', error.stack);
-    res.status(500).json({ error: 'Failed to create directory', details: error.message });
+    res.status(500).json({ error: 'Failed to create directory', details: error.message, code: error.code });
   }
 });
 
