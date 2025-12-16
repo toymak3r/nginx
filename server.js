@@ -23,18 +23,56 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Configure multer for file uploads - use /www bucket mount
+// Supports both single files and directory uploads (preserves directory structure)
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
-    const uploadPath = '/www';
+    const basePath = '/www';
+    
+    // Check if originalname contains a path (directory upload)
+    // When using FormData.append(file, webkitRelativePath), the path becomes part of originalname
+    const originalPath = file.originalname;
+    
+    // If originalname contains path separators, it's a directory upload
+    if (originalPath.includes('/') || originalPath.includes('\\')) {
+      // Normalize path separators
+      const normalizedPath = originalPath.replace(/\\/g, '/');
+      // Extract directory path (remove filename)
+      const dirPath = path.dirname(normalizedPath);
+      
+      // Skip if it's just '.' (root directory)
+      if (dirPath !== '.' && dirPath !== '/') {
+        const fullDirPath = path.join(basePath, dirPath);
+        try {
+          await fs.mkdir(fullDirPath, { recursive: true });
+          cb(null, fullDirPath);
+        } catch (error) {
+          cb(error, fullDirPath);
+        }
+        return;
+      }
+    }
+    
+    // Single file upload or root directory file - use base path
     try {
-      await fs.mkdir(uploadPath, { recursive: true });
-      cb(null, uploadPath);
+      await fs.mkdir(basePath, { recursive: true });
+      cb(null, basePath);
     } catch (error) {
-      cb(error, uploadPath);
+      cb(error, basePath);
     }
   },
   filename: (req, file, cb) => {
-    cb(null, file.originalname);
+    // Extract just the filename from the path
+    // For directory uploads, originalname contains the full relative path
+    const originalPath = file.originalname;
+    
+    if (originalPath.includes('/') || originalPath.includes('\\')) {
+      // Normalize and get just the basename
+      const normalizedPath = originalPath.replace(/\\/g, '/');
+      cb(null, path.basename(normalizedPath));
+    } else {
+      // Single file upload - use original name
+      cb(null, file.originalname);
+    }
   }
 });
 
@@ -169,18 +207,31 @@ app.post('/api/files/:filename', requireAuth, async (req, res) => {
   }
 });
 
-// Upload file(s) - supports single or multiple files
-app.post('/api/upload', requireAuth, upload.array('files', 50), async (req, res) => {
+// Upload file(s) - supports single files, multiple files, and directory uploads
+app.post('/api/upload', requireAuth, upload.array('files', 100), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const uploadedFiles = req.files.map(file => ({
-      filename: file.filename,
-      size: file.size,
-      originalName: file.originalname
-    }));
+    const uploadedFiles = req.files.map(file => {
+      // For directory uploads, reconstruct the full path
+      let filePath = file.filename;
+      if (file.path && file.path !== '/www') {
+        // Extract relative path from the stored path
+        const relativePath = file.path.replace('/www/', '').replace('/www', '');
+        if (relativePath) {
+          filePath = path.join(relativePath, file.filename).replace(/\\/g, '/');
+        }
+      }
+      
+      return {
+        filename: filePath,
+        size: file.size,
+        originalName: file.originalname,
+        path: filePath
+      };
+    });
 
     res.json({ 
       success: true, 
