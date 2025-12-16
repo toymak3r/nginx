@@ -383,6 +383,62 @@ function validatePath(filePath) {
   return fullPath;
 }
 
+// Test endpoint to verify /www directory and permissions
+app.get('/api/test/www', requireAuth, async (req, res) => {
+  try {
+    const testInfo = {
+      exists: false,
+      writable: false,
+      readable: false,
+      isDirectory: false,
+      permissions: null,
+      error: null
+    };
+    
+    try {
+      const stats = await fs.stat('/www');
+      testInfo.exists = true;
+      testInfo.isDirectory = stats.isDirectory();
+      testInfo.permissions = stats.mode.toString(8);
+    } catch (e) {
+      testInfo.error = e.message;
+      return res.json(testInfo);
+    }
+    
+    try {
+      await fs.access('/www', fs.constants.R_OK);
+      testInfo.readable = true;
+    } catch (e) {
+      testInfo.error = e.message;
+    }
+    
+    try {
+      await fs.access('/www', fs.constants.W_OK);
+      testInfo.writable = true;
+    } catch (e) {
+      testInfo.error = e.message;
+    }
+    
+    // Try to create a test directory
+    const testDir = '/www/.test-dir-' + Date.now();
+    try {
+      await fs.mkdir(testDir, { recursive: true });
+      const testStats = await fs.stat(testDir);
+      if (testStats.isDirectory()) {
+        await fs.rmdir(testDir);
+        testInfo.testDirCreated = true;
+      }
+    } catch (e) {
+      testInfo.testDirError = e.message;
+      testInfo.testDirCode = e.code;
+    }
+    
+    res.json(testInfo);
+  } catch (error) {
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
+});
+
 // Helper function to parse file path from request
 function parseFilePath(req) {
   // Use req.url instead of req.path to preserve special characters
