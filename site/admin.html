@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Manager - Admin</title>
+    <link rel="stylesheet" href="/styles.css?v=1.0" />
+    <style>
+        .admin-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .login-form {
+            max-width: 400px;
+            margin: 10rem auto;
+            padding: 2rem;
+            background: hsl(250, 24%, 12%);
+            border-radius: 8px;
+        }
+        .login-form input {
+            width: 100%;
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border: 1px solid hsl(250, 24%, 20%);
+            border-radius: 4px;
+            background: hsl(250, 24%, 15%);
+            color: white;
+            font-size: 1rem;
+        }
+        .login-form button {
+            width: 100%;
+            padding: 0.75rem;
+            margin-top: 1rem;
+            background: hsl(270, 70%, 65%);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .login-form button:hover {
+            background: hsl(270, 70%, 55%);
+        }
+        .error {
+            color: #ff6b6b;
+            margin-top: 0.5rem;
+        }
+        .admin-panel {
+            display: none;
+        }
+        .admin-panel.active {
+            display: block;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .logout-btn {
+            padding: 0.5rem 1rem;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid hsl(250, 24%, 20%);
+        }
+        .tab {
+            padding: 1rem;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: hsl(0, 0%, 70%);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+        .tab.active {
+            color: hsl(270, 70%, 65%);
+            border-bottom-color: hsl(270, 70%, 65%);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .file-list {
+            list-style: none;
+            padding: 0;
+        }
+        .file-item {
+            padding: 1rem;
+            margin: 0.5rem 0;
+            background: hsl(250, 24%, 12%);
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .file-item button {
+            padding: 0.5rem 1rem;
+            margin-left: 0.5rem;
+            background: hsl(270, 70%, 65%);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .file-item button.delete {
+            background: #ff6b6b;
+        }
+        .editor-container {
+            margin-top: 1rem;
+        }
+        .editor-container textarea {
+            width: 100%;
+            min-height: 400px;
+            padding: 1rem;
+            background: hsl(250, 24%, 12%);
+            color: white;
+            border: 1px solid hsl(250, 24%, 20%);
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .editor-actions {
+            margin-top: 1rem;
+            display: flex;
+            gap: 1rem;
+        }
+        .editor-actions button {
+            padding: 0.75rem 1.5rem;
+            background: hsl(270, 70%, 65%);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .upload-form {
+            padding: 2rem;
+            background: hsl(250, 24%, 12%);
+            border-radius: 4px;
+        }
+        .upload-form input[type="file"] {
+            width: 100%;
+            padding: 0.75rem;
+            margin: 1rem 0;
+            background: hsl(250, 24%, 15%);
+            color: white;
+            border: 1px solid hsl(250, 24%, 20%);
+            border-radius: 4px;
+        }
+        .upload-form button {
+            padding: 0.75rem 1.5rem;
+            background: hsl(270, 70%, 65%);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .success {
+            color: #51cf66;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Form -->
+    <div id="loginForm" class="login-form">
+        <h1>Admin Login</h1>
+        <form id="login">
+            <input type="text" id="username" placeholder="Username" required>
+            <input type="password" id="password" placeholder="Password" required>
+            <button type="submit">Login</button>
+            <div id="loginError" class="error"></div>
+        </form>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="adminPanel" class="admin-panel">
+        <div class="admin-container">
+            <div class="header">
+                <h1>File Manager</h1>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('edit')">Edit Files</button>
+                <button class="tab" onclick="switchTab('upload')">Upload Files</button>
+            </div>
+
+            <!-- Edit Files Tab -->
+            <div id="editTab" class="tab-content active">
+                <h2>Select a file to edit:</h2>
+                <ul id="fileList" class="file-list"></ul>
+                <div id="editorContainer" class="editor-container" style="display: none;">
+                    <h3 id="editorTitle"></h3>
+                    <textarea id="fileEditor"></textarea>
+                    <div class="editor-actions">
+                        <button onclick="saveFile()">Save File</button>
+                        <button onclick="cancelEdit()">Cancel</button>
+                    </div>
+                    <div id="saveMessage"></div>
+                </div>
+            </div>
+
+            <!-- Upload Files Tab -->
+            <div id="uploadTab" class="tab-content">
+                <div class="upload-form">
+                    <h2>Upload File</h2>
+                    <p>Upload a file to replace or add to the site. If the file already exists, it will be replaced.</p>
+                    <form id="uploadForm">
+                        <input type="file" id="fileInput" required>
+                        <button type="submit">Upload File</button>
+                    </form>
+                    <div id="uploadMessage"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentFile = null;
+
+        // Check authentication status on load
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/auth/status');
+                const data = await response.json();
+                if (data.authenticated) {
+                    showAdminPanel();
+                    loadFileList();
+                } else {
+                    showLoginForm();
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                showLoginForm();
+            }
+        }
+
+        // Login
+        document.getElementById('login').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('loginError');
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    showAdminPanel();
+                    loadFileList();
+                } else {
+                    errorDiv.textContent = data.error || 'Login failed';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Connection error';
+            }
+        });
+
+        // Logout
+        async function logout() {
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                showLoginForm();
+                document.getElementById('username').value = '';
+                document.getElementById('password').value = '';
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        }
+
+        // Show/Hide panels
+        function showLoginForm() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('adminPanel').classList.remove('active');
+        }
+
+        function showAdminPanel() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('adminPanel').classList.add('active');
+        }
+
+        // Load file list
+        async function loadFileList() {
+            try {
+                const response = await fetch('/api/files');
+                const files = await response.json();
+                const fileList = document.getElementById('fileList');
+                fileList.innerHTML = '';
+
+                files.forEach(file => {
+                    if (file.type === 'file') {
+                        const li = document.createElement('li');
+                        li.className = 'file-item';
+                        li.innerHTML = `
+                            <span>${file.name} (${formatSize(file.size)})</span>
+                            <div>
+                                <button onclick="editFile('${file.name}')">Edit</button>
+                                ${file.name !== 'index.html' ? `<button class="delete" onclick="deleteFile('${file.name}')">Delete</button>` : ''}
+                            </div>
+                        `;
+                        fileList.appendChild(li);
+                    }
+                });
+            } catch (error) {
+                console.error('Failed to load files:', error);
+            }
+        }
+
+        // Edit file
+        async function editFile(filename) {
+            try {
+                const response = await fetch(`/api/files/${encodeURIComponent(filename)}`);
+                const data = await response.json();
+                currentFile = filename;
+                document.getElementById('editorTitle').textContent = `Editing: ${filename}`;
+                document.getElementById('fileEditor').value = data.content;
+                document.getElementById('editorContainer').style.display = 'block';
+                document.getElementById('saveMessage').textContent = '';
+                document.getElementById('fileEditor').scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                alert('Failed to load file');
+            }
+        }
+
+        // Save file
+        async function saveFile() {
+            if (!currentFile) return;
+
+            try {
+                const content = document.getElementById('fileEditor').value;
+                const response = await fetch(`/api/files/${encodeURIComponent(currentFile)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+
+                const data = await response.json();
+                const messageDiv = document.getElementById('saveMessage');
+                if (response.ok) {
+                    messageDiv.textContent = 'File saved successfully!';
+                    messageDiv.className = 'success';
+                    setTimeout(() => {
+                        messageDiv.textContent = '';
+                    }, 3000);
+                } else {
+                    messageDiv.textContent = data.error || 'Failed to save file';
+                    messageDiv.className = 'error';
+                }
+            } catch (error) {
+                document.getElementById('saveMessage').textContent = 'Connection error';
+                document.getElementById('saveMessage').className = 'error';
+            }
+        }
+
+        // Cancel edit
+        function cancelEdit() {
+            document.getElementById('editorContainer').style.display = 'none';
+            currentFile = null;
+            document.getElementById('fileEditor').value = '';
+        }
+
+        // Delete file
+        async function deleteFile(filename) {
+            if (!confirm(`Are you sure you want to delete ${filename}?`)) return;
+
+            try {
+                const response = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    loadFileList();
+                } else {
+                    alert('Failed to delete file');
+                }
+            } catch (error) {
+                alert('Connection error');
+            }
+        }
+
+        // Upload file
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const messageDiv = document.getElementById('uploadMessage');
+
+            if (!file) {
+                messageDiv.textContent = 'Please select a file';
+                messageDiv.className = 'error';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    messageDiv.textContent = `File "${data.filename}" uploaded successfully!`;
+                    messageDiv.className = 'success';
+                    fileInput.value = '';
+                    loadFileList();
+                } else {
+                    messageDiv.textContent = data.error || 'Upload failed';
+                    messageDiv.className = 'error';
+                }
+            } catch (error) {
+                messageDiv.textContent = 'Connection error';
+                messageDiv.className = 'error';
+            }
+        });
+
+        // Switch tabs
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            if (tab === 'edit') {
+                document.querySelector('.tab').classList.add('active');
+                document.getElementById('editTab').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('uploadTab').classList.add('active');
+            }
+        }
+
+        // Format file size
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // Initialize
+        checkAuth();
+    </script>
+</body>
+</html>
+
