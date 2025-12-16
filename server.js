@@ -169,22 +169,28 @@ app.post('/api/files/:filename', requireAuth, async (req, res) => {
   }
 });
 
-// Upload file (replace entire page or upload new file)
-app.post('/api/upload', requireAuth, upload.single('file'), async (req, res) => {
+// Upload file(s) - supports single or multiple files
+app.post('/api/upload', requireAuth, upload.array('files', 50), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
     }
+
+    const uploadedFiles = req.files.map(file => ({
+      filename: file.filename,
+      size: file.size,
+      originalName: file.originalname
+    }));
 
     res.json({ 
       success: true, 
-      message: 'File uploaded successfully',
-      filename: req.file.filename,
-      size: req.file.size
+      message: `${req.files.length} file(s) uploaded successfully`,
+      files: uploadedFiles,
+      count: req.files.length
     });
   } catch (error) {
-    console.error('Error uploading file:', error);
-    res.status(500).json({ error: 'Failed to upload file' });
+    console.error('Error uploading files:', error);
+    res.status(500).json({ error: 'Failed to upload files' });
   }
 });
 

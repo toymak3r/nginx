@@ -214,13 +214,18 @@
             <!-- Upload Files Tab -->
             <div id="uploadTab" class="tab-content">
                 <div class="upload-form">
-                    <h2>Upload File</h2>
-                    <p>Upload a file to replace or add to the site. If the file already exists, it will be replaced.</p>
+                    <h2>Upload Files</h2>
+                    <p>Upload one or multiple files to replace or add to the site. If a file already exists, it will be replaced.</p>
                     <form id="uploadForm">
-                        <input type="file" id="fileInput" required>
-                        <button type="submit">Upload File</button>
+                        <input type="file" id="fileInput" multiple required>
+                        <button type="submit">Upload Files</button>
                     </form>
                     <div id="uploadMessage"></div>
+                    <div id="uploadProgress" style="display: none; margin-top: 1rem;">
+                        <div style="background: hsl(250, 24%, 12%); padding: 1rem; border-radius: 4px;">
+                            <div id="uploadStatus"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -394,21 +399,32 @@
             }
         }
 
-        // Upload file
+        // Upload file(s)
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const fileInput = document.getElementById('fileInput');
-            const file = fileInput.files[0];
+            const files = fileInput.files;
             const messageDiv = document.getElementById('uploadMessage');
+            const progressDiv = document.getElementById('uploadProgress');
+            const statusDiv = document.getElementById('uploadStatus');
 
-            if (!file) {
-                messageDiv.textContent = 'Please select a file';
+            if (!files || files.length === 0) {
+                messageDiv.textContent = 'Please select at least one file';
                 messageDiv.className = 'error';
                 return;
             }
 
             const formData = new FormData();
-            formData.append('file', file);
+            // Append all selected files
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+
+            // Show progress
+            progressDiv.style.display = 'block';
+            statusDiv.innerHTML = `Uploading ${files.length} file(s)...`;
+            messageDiv.textContent = '';
+            messageDiv.className = '';
 
             try {
                 const response = await fetch('/api/upload', {
@@ -418,15 +434,26 @@
 
                 const data = await response.json();
                 if (response.ok) {
-                    messageDiv.textContent = `File "${data.filename}" uploaded successfully!`;
+                    progressDiv.style.display = 'none';
+                    if (data.count === 1) {
+                        messageDiv.textContent = `File "${data.files[0].filename}" uploaded successfully!`;
+                    } else {
+                        messageDiv.textContent = `${data.count} files uploaded successfully!`;
+                        // Show list of uploaded files
+                        const fileList = data.files.map(f => `• ${f.filename}`).join('<br>');
+                        statusDiv.innerHTML = `<strong>Uploaded files:</strong><br>${fileList}`;
+                        progressDiv.style.display = 'block';
+                    }
                     messageDiv.className = 'success';
                     fileInput.value = '';
                     loadFileList();
                 } else {
+                    progressDiv.style.display = 'none';
                     messageDiv.textContent = data.error || 'Upload failed';
                     messageDiv.className = 'error';
                 }
             } catch (error) {
+                progressDiv.style.display = 'none';
                 messageDiv.textContent = 'Connection error';
                 messageDiv.className = 'error';
             }
