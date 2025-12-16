@@ -17,8 +17,14 @@ COPY nginx.conf /etc/nginx/nginx.conf.template
 COPY site/admin.html /usr/share/nginx/html/admin.html
 COPY start.sh /start.sh
 
-# Create /www directory (bucket will be mounted here by Railway)
+# Create /www directory (Railway storage volume will be mounted here)
+# IMPORTANT: You must add a volume mount at /www in Railway dashboard
+# Go to: Service Settings → Volumes → Add Volume → Mount Path: /www
 RUN mkdir -p /www
+
+# Copy initial site files to /www (these will be available if /www is empty)
+# Note: If Railway volume is already mounted with files, these won't overwrite
+COPY site/* /www/
 
 # Install gettext for envsubst
 RUN apk add --no-cache gettext

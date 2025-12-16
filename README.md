@@ -14,6 +14,43 @@ A static site deployment with NGINX that includes an admin interface for editing
 
 ## 🚀 Quick Start
 
+### Railway Deployment
+
+**📖 For detailed Railway setup instructions, see [RAILWAY_SETUP.md](./RAILWAY_SETUP.md)**
+
+Quick steps:
+
+1. **Deploy the template:**
+   - Click the "Deploy on Railway" button above, or
+   - Use the Railway CLI: `railway up`
+
+2. **Add Storage Mount (REQUIRED):**
+   - In your Railway project dashboard, go to your service
+   - Click on **Settings** → **Volumes**
+   - Click **+ New Volume** or **Add Volume**
+   - Set the mount path to: `/www`
+   - Give it a name (e.g., "www-storage")
+   - Click **Add**
+
+3. **Set Environment Variables:**
+   - Go to **Variables** in your Railway service
+   - Add the following required variables:
+     ```
+     ADMIN_USERNAME=admin
+     ADMIN_PASSWORD_HASH=<generate-using-script-below>
+     SESSION_SECRET=<generate-a-random-secret>
+     BACKEND_PORT=5000
+     ```
+   - Generate password hash: `node generate-password.js your-password`
+   - Generate a random SESSION_SECRET: `openssl rand -hex 32`
+
+4. **Deploy:**
+   - Railway will automatically build and deploy your service
+   - Once deployed, access your site at the Railway-provided URL
+   - Admin panel: `https://your-app.railway.app/admin.html`
+
+**⚠️ Important:** The `/www` storage mount is **required** for the application to work properly. This is where all uploaded files and static site content will be stored persistently. Without it, file uploads and edits will fail.
+
 ### Local Development
 
 1. Install dependencies:
@@ -99,7 +136,8 @@ Once logged in at `/admin.html`, you can:
 
 ## 💁‍♀️ How it works
 
-- NGINX serves static files from the `site/` directory
+- NGINX serves static files from the `/www` directory (Railway storage mount)
 - API requests to `/api/*` are proxied to the Node.js backend
 - The backend handles authentication, file reading, editing, and uploading
-- File changes are written directly to the `site/` directory
+- File changes are written directly to the `/www` directory
+- The admin interface (`admin.html`) is served from a separate location and is not editable through the file manager
