@@ -25,7 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 // Configure multer for file uploads - use /www bucket mount
 // Supports both single files and directory uploads (preserves directory structure)
 const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
+  destination: (req, file, cb) => {
     const basePath = '/www';
     
     // Check if originalname contains a path (directory upload)
@@ -42,23 +42,24 @@ const storage = multer.diskStorage({
       // Skip if it's just '.' (root directory)
       if (dirPath !== '.' && dirPath !== '/') {
         const fullDirPath = path.join(basePath, dirPath);
-        try {
-          await fs.mkdir(fullDirPath, { recursive: true });
-          cb(null, fullDirPath);
-        } catch (error) {
-          cb(error, fullDirPath);
-        }
+        // Use fs.promises but handle it synchronously with .then/.catch
+        fs.mkdir(fullDirPath, { recursive: true })
+          .then(() => cb(null, fullDirPath))
+          .catch((error) => {
+            console.error('Error creating directory:', fullDirPath, error);
+            cb(error, fullDirPath);
+          });
         return;
       }
     }
     
     // Single file upload or root directory file - use base path
-    try {
-      await fs.mkdir(basePath, { recursive: true });
-      cb(null, basePath);
-    } catch (error) {
-      cb(error, basePath);
-    }
+    fs.mkdir(basePath, { recursive: true })
+      .then(() => cb(null, basePath))
+      .catch((error) => {
+        console.error('Error creating base directory:', basePath, error);
+        cb(error, basePath);
+      });
   },
   filename: (req, file, cb) => {
     // Extract just the filename from the path
@@ -210,8 +211,37 @@ app.post('/api/files/:filename', requireAuth, async (req, res) => {
   }
 });
 
+// Multer error handler middleware
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('Multer error:', err);
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: `File too large. Maximum size is 100MB. File: ${err.field}` });
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ error: 'Too many files. Maximum is 100 files per upload.' });
+    }
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({ error: 'Unexpected file field.' });
+    }
+    return res.status(400).json({ error: `Upload error: ${err.message}` });
+  }
+  if (err) {
+    console.error('Upload error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to upload files' });
+  }
+  next();
+};
+
 // Upload file(s) - supports single files, multiple files, and directory uploads
-app.post('/api/upload', requireAuth, upload.array('files', 100), async (req, res) => {
+app.post('/api/upload', requireAuth, (req, res, next) => {
+  upload.array('files', 100)(req, res, (err) => {
+    if (err) {
+      return handleMulterError(err, req, res, next);
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
@@ -244,7 +274,11 @@ app.post('/api/upload', requireAuth, upload.array('files', 100), async (req, res
     });
   } catch (error) {
     console.error('Error uploading files:', error);
-    res.status(500).json({ error: 'Failed to upload files' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to upload files',
+      message: error.message || 'Unknown error occurred'
+    });
   }
 });
 
@@ -271,7 +305,42 @@ app.delete('/api/files/:filename', requireAuth, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Verify /www directory exists and is writable on startup
+async function verifyWwwDirectory() {
+  const wwwPath = '/www';
+  try {
+    await fs.access(wwwPath);
+    // Check if writable by trying to write a test file
+    const testFile = path.join(wwwPath, '.write-test');
+    try {
+      await fs.writeFile(testFile, 'test');
+      await fs.unlink(testFile);
+      console.log(`✓ /www directory exists and is writable`);
+    } catch (writeError) {
+      console.warn(`⚠ /www directory exists but may not be writable:`, writeError.message);
+    }
+  } catch (error) {
+    console.warn(`⚠ /www directory check failed:`, error.message);
+    try {
+      await fs.mkdir(wwwPath, { recursive: true });
+      console.log(`✓ Created /www directory`);
+    } catch (mkdirError) {
+      console.error(`✗ Failed to create /www directory:`, mkdirError.message);
+      console.error(`  This may cause upload failures. Ensure Railway volume is mounted at /www`);
+    }
+  }
+}
+
+// Start server
+verifyWwwDirectory().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}).catch((error) => {
+  console.error('Failed to verify /www directory:', error);
+  // Start server anyway - errors will be caught during upload
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT} (with warnings)`);
+  });
 });
 
