@@ -1263,7 +1263,7 @@
                         <td class="file-date">${formatDate(file.modified || new Date())}</td>
                         <td class="file-actions">
                             <button onclick="event.stopPropagation(); editFile('${escapedPath}')" title="Edit">✏️ Edit</button>
-                            ${file.name !== 'index.html' ? `<button class="delete" onclick="event.stopPropagation(); deleteFile('${escapedPath}')" title="Delete">🗑️ Delete</button>` : ''}
+                            <button class="delete" onclick="event.stopPropagation(); deleteFile('${escapedPath}')" title="Delete">🗑️ Delete</button>
                         </td>
                     `;
                     

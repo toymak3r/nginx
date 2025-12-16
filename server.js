@@ -336,11 +336,6 @@ app.delete('/api/files/*', requireAuth, async (req, res) => {
     if (filePath.includes('..') || path.isAbsolute(filePath)) {
       return res.status(400).json({ error: 'Invalid file path' });
     }
-    
-    // Prevent deletion of index.html (in root or any subdirectory)
-    if (filePath === 'index.html' || filePath.endsWith('/index.html')) {
-      return res.status(400).json({ error: 'Cannot delete index.html' });
-    }
 
     const fullPath = path.join('/www', filePath);
     // Ensure the path is within /www directory
