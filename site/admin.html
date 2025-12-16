@@ -1024,6 +1024,17 @@
                     <form id="uploadForm">
                         <input type="file" id="fileInput" multiple required>
                         <div id="uploadInfo" class="upload-info"></div>
+                        <div id="targetDirectoryContainer" style="display: none; margin-top: 1rem;">
+                            <label for="targetDirectory" style="display: block; margin-bottom: 0.5rem; color: rgba(255, 255, 255, 0.8); font-weight: 500;">
+                                Target Directory Name (optional):
+                            </label>
+                            <input type="text" id="targetDirectory" class="file-search" 
+                                   placeholder="e.g., imgs (leave empty to upload to root)" 
+                                   style="margin: 0;">
+                            <small style="display: block; margin-top: 0.5rem; color: rgba(255, 255, 255, 0.5); font-size: 0.85rem;">
+                                If specified, files will be uploaded to /[directory-name]/ instead of root
+                            </small>
+                        </div>
                         <div id="directoryPreview" class="directory-preview" style="display: none;"></div>
                         <button type="submit">Upload</button>
                     </form>
@@ -1679,6 +1690,7 @@
                 fileInput.removeAttribute('multiple');
                 fileInput.setAttribute('webkitdirectory', '');
                 fileInput.setAttribute('directory', '');
+                document.getElementById('targetDirectoryContainer').style.display = 'block';
                 uploadInfo.innerHTML = '<strong>Directory Mode:</strong> Select a folder to upload all files and subdirectories. Directory structure will be preserved.';
             } else {
                 fileModeBtn.classList.add('active');
@@ -1686,6 +1698,8 @@
                 fileInput.removeAttribute('webkitdirectory');
                 fileInput.removeAttribute('directory');
                 fileInput.setAttribute('multiple', '');
+                document.getElementById('targetDirectoryContainer').style.display = 'none';
+                document.getElementById('targetDirectory').value = '';
                 uploadInfo.innerHTML = '<strong>File Mode:</strong> Select one or multiple files to upload.';
             }
         }
@@ -1748,6 +1762,32 @@
             const files = e.target.files;
             if (uploadMode === 'directory' && files.length > 0) {
                 previewDirectory(files);
+                
+                // Try to auto-detect and suggest target directory name
+                const allPaths = Array.from(files)
+                    .map(f => f.webkitRelativePath || f.name)
+                    .filter(p => p);
+                
+                if (allPaths.length > 0) {
+                    // Check if all paths share a common root directory
+                    const firstPathParts = allPaths[0].split('/');
+                    if (firstPathParts.length > 1) {
+                        const candidateRoot = firstPathParts[0];
+                        const allShareRoot = allPaths.every(p => {
+                            const parts = p.split('/');
+                            return parts.length === 1 || parts[0] === candidateRoot;
+                        });
+                        
+                        if (allShareRoot) {
+                            // Auto-fill target directory if empty
+                            const targetDirInput = document.getElementById('targetDirectory');
+                            if (!targetDirInput.value.trim()) {
+                                targetDirInput.value = candidateRoot;
+                                targetDirInput.placeholder = `Auto-detected: ${candidateRoot}`;
+                            }
+                        }
+                    }
+                }
             } else {
                 document.getElementById('directoryPreview').style.display = 'none';
             }
@@ -1774,13 +1814,62 @@
             }
 
             const formData = new FormData();
+            
+            // For directory uploads, get target directory name from input or detect from paths
+            let targetDirectoryName = null;
+            if (uploadMode === 'directory' && files.length > 0) {
+                // First, check if user specified a target directory name
+                const targetDirInput = document.getElementById('targetDirectory');
+                const userSpecifiedDir = targetDirInput.value.trim();
+                
+                if (userSpecifiedDir) {
+                    // User specified a directory name - use it
+                    targetDirectoryName = userSpecifiedDir.replace(/[\/\\]/g, ''); // Remove any slashes for safety
+                } else {
+                    // Try to auto-detect from file paths
+                    const allPaths = Array.from(files)
+                        .map(f => f.webkitRelativePath || f.name)
+                        .filter(p => p);
+                    
+                    if (allPaths.length > 0) {
+                        // Check if all paths share a common root directory
+                        const firstPathParts = allPaths[0].split('/');
+                        
+                        if (firstPathParts.length > 1) {
+                            // First path has directory structure - check if all paths share the same root
+                            const candidateRoot = firstPathParts[0];
+                            const allShareRoot = allPaths.every(p => {
+                                const parts = p.split('/');
+                                return parts.length === 1 || parts[0] === candidateRoot;
+                            });
+                            
+                            if (allShareRoot) {
+                                targetDirectoryName = candidateRoot;
+                            }
+                        }
+                    }
+                }
+            }
+            
             // Append all selected files with their relative paths for directory uploads
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                // For directory uploads, use webkitRelativePath as the filename parameter
-                // This tells multer where to place the file in the directory structure
+                // For directory uploads, preserve the directory structure
                 if (uploadMode === 'directory' && file.webkitRelativePath) {
-                    formData.append('files', file, file.webkitRelativePath);
+                    let uploadPath = file.webkitRelativePath;
+                    const pathParts = uploadPath.split('/');
+                    
+                    // If user specified a target directory or we detected one, and file is in root of selected directory
+                    if (targetDirectoryName && pathParts.length === 1) {
+                        // File is in root of selected directory - prepend target directory name
+                        uploadPath = targetDirectoryName + '/' + uploadPath;
+                    } else if (targetDirectoryName && pathParts.length > 1 && pathParts[0] !== targetDirectoryName) {
+                        // Path has directory structure but doesn't start with target directory - prepend it
+                        uploadPath = targetDirectoryName + '/' + uploadPath;
+                    }
+                    // If path already starts with target directory or no target directory specified, use as-is
+                    
+                    formData.append('files', file, uploadPath);
                 } else {
                     formData.append('files', file);
                 }
