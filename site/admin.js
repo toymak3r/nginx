@@ -193,9 +193,10 @@ return;
 filteredFiles.forEach(file => {
 if (file.type === 'file') {
 const tr = document.createElement('tr');
-const fileType = getFileType(file.name);
-const fileTypeName = getFileTypeName(file.name);
-const isSelected = selectedFiles.has(file.name);
+const isDirectory = file.type === 'directory';
+const fileType = isDirectory ? 'directory' : getFileType(file.name);
+const fileTypeName = isDirectory ? 'Directory' : getFileTypeName(file.name);
+const isSelected = selectedFiles.has(file.path || file.name);
 const escapedName = file.name.replace(/'/g, "\\'");
 
 if (isSelected) {
@@ -215,15 +216,15 @@ onclick="event.stopPropagation()">
 </td>
 <td>
 <div class="file-icon" data-type="${fileType}">
-<span class="file-name">${file.name}</span>
+<span class="file-name">${isDirectory ? '📁 ' : ''}${file.name}</span>
 </div>
 </td>
 <td class="file-path" title="${displayPath}">${displayPath}</td>
 <td class="file-type">${fileTypeName}</td>
-<td class="file-size">${formatSize(file.size || 0)}</td>
+<td class="file-size">${isDirectory ? '-' : formatSize(file.size || 0)}</td>
 <td class="file-date">${formatDate(file.modified || new Date())}</td>
 <td class="file-actions">
-<button onclick="event.stopPropagation(); editFile('${escapedPath}')" title="Edit">✏️ Edit</button>
+${isDirectory ? '' : `<button onclick="event.stopPropagation(); editFile('${escapedPath}')" title="Edit">✏️ Edit</button>`}
 <button onclick="event.stopPropagation(); showRenameDialog('${escapedPath}')" title="Rename">✏️ Rename</button>
 <button onclick="event.stopPropagation(); showMoveDialog('${escapedPath}')" title="Move">📦 Move</button>
 <button class="delete" onclick="event.stopPropagation(); deleteFile('${escapedPath}')" title="Delete">🗑️ Delete</button>

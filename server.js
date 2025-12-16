@@ -152,9 +152,9 @@ app.get('/api/auth/status', (req, res) => {
   });
 });
 
-// Recursively get all files in a directory
-async function getAllFiles(dir, baseDir = dir) {
-  const files = [];
+// Recursively get all files and directories
+async function getAllFiles(dir, baseDir = dir, includeDirs = true) {
+  const items = [];
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     
@@ -163,12 +163,27 @@ async function getAllFiles(dir, baseDir = dir) {
       const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, '/');
       
       if (entry.isDirectory()) {
+        // Include directory in results if requested
+        if (includeDirs) {
+          try {
+            const stats = await fs.stat(fullPath);
+            items.push({
+              name: entry.name,
+              path: relativePath,
+              type: 'directory',
+              size: 0,
+              modified: stats.mtime
+            });
+          } catch (e) {
+            console.warn(`Could not stat directory ${fullPath}:`, e.message);
+          }
+        }
         // Recursively get files from subdirectories
-        const subFiles = await getAllFiles(fullPath, baseDir);
-        files.push(...subFiles);
+        const subItems = await getAllFiles(fullPath, baseDir, includeDirs);
+        items.push(...subItems);
       } else {
         const stats = await fs.stat(fullPath);
-        files.push({
+        items.push({
           name: entry.name,
           path: relativePath,
           type: 'file',
@@ -181,14 +196,14 @@ async function getAllFiles(dir, baseDir = dir) {
     console.error(`Error reading directory ${dir}:`, error);
   }
   
-  return files;
+  return items;
 }
 
 // Get list of files in /www bucket directory (recursively)
 app.get('/api/files', requireAuth, async (req, res) => {
   try {
     const siteDir = '/www';
-    const fileList = await getAllFiles(siteDir, siteDir);
+    const fileList = await getAllFiles(siteDir, siteDir, true); // Include directories
     res.json(fileList);
   } catch (error) {
     console.error('Error reading files:', error);
