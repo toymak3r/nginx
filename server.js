@@ -397,14 +397,28 @@ app.post('/api/directory', requireAuth, async (req, res) => {
   try {
     const { path: dirPath } = req.body;
     
-    if (!dirPath) {
+    if (!dirPath || !dirPath.trim()) {
       return res.status(400).json({ error: 'Directory path is required' });
     }
     
-    const fullPath = validatePath(dirPath);
-    if (!fullPath) {
+    // Trim and normalize the path
+    const normalizedPath = dirPath.trim().replace(/^\/+|\/+$/g, ''); // Remove leading/trailing slashes
+    
+    // Security: prevent path traversal
+    if (normalizedPath.includes('..') || normalizedPath.includes('//')) {
       return res.status(400).json({ error: 'Invalid directory path' });
     }
+    
+    // Build full path
+    const fullPath = path.join('/www', normalizedPath);
+    const resolvedPath = path.resolve(fullPath);
+    
+    // Ensure the path is within /www directory
+    if (!resolvedPath.startsWith(path.resolve('/www'))) {
+      return res.status(400).json({ error: 'Invalid directory path' });
+    }
+    
+    console.log(`Creating directory: ${fullPath} (resolved: ${resolvedPath})`);
     
     // Check if directory already exists
     try {
@@ -415,12 +429,23 @@ app.post('/api/directory', requireAuth, async (req, res) => {
       return res.status(409).json({ error: 'A file with this name already exists' });
     } catch (e) {
       // Directory doesn't exist, create it
+      console.log(`Directory doesn't exist, creating: ${fullPath}`);
     }
     
+    // Create directory recursively (creates parent directories if needed)
     await fs.mkdir(fullPath, { recursive: true });
-    res.json({ success: true, message: 'Directory created successfully', path: dirPath });
+    
+    // Verify it was created
+    const stats = await fs.stat(fullPath);
+    if (!stats.isDirectory()) {
+      return res.status(500).json({ error: 'Failed to create directory' });
+    }
+    
+    console.log(`Directory created successfully: ${fullPath}`);
+    res.json({ success: true, message: 'Directory created successfully', path: normalizedPath });
   } catch (error) {
     console.error('Error creating directory:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ error: 'Failed to create directory', details: error.message });
   }
 });

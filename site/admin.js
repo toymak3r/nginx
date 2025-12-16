@@ -603,6 +603,7 @@ cancelEdit();
 // Create directory
 async function createDirectory(dirPath) {
 try {
+console.log('Sending create directory request:', dirPath);
 const response = await fetch('/api/directory', {
 method: 'POST',
 headers: { 'Content-Type': 'application/json' },
@@ -610,28 +611,33 @@ body: JSON.stringify({ path: dirPath })
 });
 
 const data = await response.json();
+console.log('Create directory response:', response.status, data);
+
 if (response.ok) {
-loadFileList();
 return { success: true, message: data.message };
 } else {
 return { success: false, message: data.error || 'Failed to create directory' };
 }
 } catch (error) {
-return { success: false, message: 'Connection error' };
+console.error('Create directory error:', error);
+return { success: false, message: 'Connection error: ' + error.message };
 }
 }
 
 // Show create directory dialog
 function showCreateDirectoryDialog() {
-const dirName = prompt('Enter directory name:');
+const dirName = prompt('Enter directory name or path (e.g., "subdir" or "parent/child"):');
 if (!dirName || !dirName.trim()) return;
 
 const dirPath = dirName.trim();
+console.log('Creating directory:', dirPath);
 createDirectory(dirPath).then(result => {
 if (result.success) {
 alert('Directory created successfully!');
+loadFileList(); // Refresh file list
 } else {
 alert('Error: ' + result.message);
+console.error('Directory creation failed:', result.message);
 }
 });
 }
