@@ -7,9 +7,9 @@ const fs = require('fs').promises;
 require('dotenv').config();
 
 const app = express();
-// Use BACKEND_PORT if set, otherwise default to 3000
-// This allows Railway's PORT to be used by nginx while backend uses a fixed port
-const PORT = process.env.BACKEND_PORT || process.env.PORT || 3000;
+// Use BACKEND_PORT if set, otherwise default to 5000
+// This allows Railway's PORT to be used by nginx while backend uses a fixed internal port
+const PORT = process.env.BACKEND_PORT || 5000;
 
 // Session configuration
 app.use(session({
