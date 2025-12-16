@@ -200,7 +200,21 @@ app.get('/api/files', requireAuth, async (req, res) => {
 app.get('/api/files/*', requireAuth, async (req, res) => {
   try {
     // Get the path from the request - remove '/api/files' prefix
-    const filePath = req.path.replace('/api/files/', '') || req.path.replace('/api/files', '');
+    let filePath = req.path.replace('/api/files/', '') || req.path.replace('/api/files', '');
+    
+    // URL decode the path
+    try {
+      filePath = decodeURIComponent(filePath);
+    } catch (e) {
+      // If decoding fails, use the original path
+      console.warn('Failed to decode file path:', filePath);
+    }
+    
+    // Remove query parameters (everything after ?)
+    const queryIndex = filePath.indexOf('?');
+    if (queryIndex !== -1) {
+      filePath = filePath.substring(0, queryIndex);
+    }
     
     // Security: prevent path traversal
     if (filePath.includes('..') || path.isAbsolute(filePath)) {
@@ -226,7 +240,21 @@ app.get('/api/files/*', requireAuth, async (req, res) => {
 app.post('/api/files/*', requireAuth, async (req, res) => {
   try {
     // Get the path from the request - remove '/api/files' prefix
-    const filePath = req.path.replace('/api/files/', '') || req.path.replace('/api/files', '');
+    let filePath = req.path.replace('/api/files/', '') || req.path.replace('/api/files', '');
+    
+    // URL decode the path
+    try {
+      filePath = decodeURIComponent(filePath);
+    } catch (e) {
+      // If decoding fails, use the original path
+      console.warn('Failed to decode file path:', filePath);
+    }
+    
+    // Remove query parameters (everything after ?)
+    const queryIndex = filePath.indexOf('?');
+    if (queryIndex !== -1) {
+      filePath = filePath.substring(0, queryIndex);
+    }
     
     // Security: prevent path traversal
     if (filePath.includes('..') || path.isAbsolute(filePath)) {
@@ -326,29 +354,215 @@ app.post('/api/upload', requireAuth, (req, res, next) => {
   }
 });
 
-// Delete file
+// Helper function to validate and resolve paths
+function validatePath(filePath) {
+  // Security: prevent path traversal
+  if (filePath.includes('..') || path.isAbsolute(filePath)) {
+    return null;
+  }
+  
+  const fullPath = path.join('/www', filePath);
+  const resolvedPath = path.resolve(fullPath);
+  
+  // Ensure the path is within /www directory
+  if (!resolvedPath.startsWith(path.resolve('/www'))) {
+    return null;
+  }
+  
+  return fullPath;
+}
+
+// Helper function to parse file path from request
+function parseFilePath(req) {
+  let filePath = req.path.replace('/api/files/', '').replace('/api/files', '');
+  
+  // URL decode the path
+  try {
+    filePath = decodeURIComponent(filePath);
+  } catch (e) {
+    console.warn('Failed to decode file path:', filePath);
+  }
+  
+  // Remove query parameters
+  const queryIndex = filePath.indexOf('?');
+  if (queryIndex !== -1) {
+    filePath = filePath.substring(0, queryIndex);
+  }
+  
+  return filePath;
+}
+
+// Create directory
+app.post('/api/directory', requireAuth, async (req, res) => {
+  try {
+    const { path: dirPath } = req.body;
+    
+    if (!dirPath) {
+      return res.status(400).json({ error: 'Directory path is required' });
+    }
+    
+    const fullPath = validatePath(dirPath);
+    if (!fullPath) {
+      return res.status(400).json({ error: 'Invalid directory path' });
+    }
+    
+    // Check if directory already exists
+    try {
+      const stats = await fs.stat(fullPath);
+      if (stats.isDirectory()) {
+        return res.status(409).json({ error: 'Directory already exists' });
+      }
+      return res.status(409).json({ error: 'A file with this name already exists' });
+    } catch (e) {
+      // Directory doesn't exist, create it
+    }
+    
+    await fs.mkdir(fullPath, { recursive: true });
+    res.json({ success: true, message: 'Directory created successfully', path: dirPath });
+  } catch (error) {
+    console.error('Error creating directory:', error);
+    res.status(500).json({ error: 'Failed to create directory', details: error.message });
+  }
+});
+
+// Rename file or directory
+app.put('/api/files/*', requireAuth, async (req, res) => {
+  try {
+    const filePath = parseFilePath(req);
+    const { newName } = req.body;
+    
+    if (!newName) {
+      return res.status(400).json({ error: 'New name is required' });
+    }
+    
+    // Security: prevent path traversal in new name
+    if (newName.includes('..') || newName.includes('/') || newName.includes('\\')) {
+      return res.status(400).json({ error: 'Invalid new name' });
+    }
+    
+    const oldFullPath = validatePath(filePath);
+    if (!oldFullPath) {
+      return res.status(400).json({ error: 'Invalid file path' });
+    }
+    
+    // Get directory of the old file
+    const dirPath = path.dirname(oldFullPath);
+    const newFullPath = path.join(dirPath, newName);
+    
+    // Ensure new path is still within /www
+    const resolvedNewPath = path.resolve(newFullPath);
+    if (!resolvedNewPath.startsWith(path.resolve('/www'))) {
+      return res.status(400).json({ error: 'Invalid new path' });
+    }
+    
+    // Check if new name already exists
+    try {
+      await fs.access(newFullPath);
+      return res.status(409).json({ error: 'A file or directory with this name already exists' });
+    } catch (e) {
+      // New name doesn't exist, proceed with rename
+    }
+    
+    // Check if old file exists
+    try {
+      await fs.access(oldFullPath);
+    } catch (accessError) {
+      return res.status(404).json({ error: 'File or directory not found' });
+    }
+    
+    await fs.rename(oldFullPath, newFullPath);
+    res.json({ success: true, message: 'Renamed successfully', oldPath: filePath, newPath: path.join(path.dirname(filePath), newName) });
+  } catch (error) {
+    console.error('Error renaming file:', error);
+    res.status(500).json({ error: 'Failed to rename', details: error.message });
+  }
+});
+
+// Move file or directory
+app.post('/api/files/*/move', requireAuth, async (req, res) => {
+  try {
+    const filePath = parseFilePath(req);
+    const { destination } = req.body;
+    
+    if (!destination) {
+      return res.status(400).json({ error: 'Destination path is required' });
+    }
+    
+    const sourceFullPath = validatePath(filePath);
+    if (!sourceFullPath) {
+      return res.status(400).json({ error: 'Invalid source path' });
+    }
+    
+    const destFullPath = validatePath(destination);
+    if (!destFullPath) {
+      return res.status(400).json({ error: 'Invalid destination path' });
+    }
+    
+    // Check if source exists
+    try {
+      await fs.access(sourceFullPath);
+    } catch (accessError) {
+      return res.status(404).json({ error: 'Source file or directory not found' });
+    }
+    
+    // Get the filename from source
+    const fileName = path.basename(sourceFullPath);
+    const newFullPath = path.join(destFullPath, fileName);
+    
+    // Ensure new path is still within /www
+    const resolvedNewPath = path.resolve(newFullPath);
+    if (!resolvedNewPath.startsWith(path.resolve('/www'))) {
+      return res.status(400).json({ error: 'Invalid destination path' });
+    }
+    
+    // Check if destination already exists
+    try {
+      await fs.access(newFullPath);
+      return res.status(409).json({ error: 'A file or directory with this name already exists at the destination' });
+    } catch (e) {
+      // Destination doesn't exist, proceed with move
+    }
+    
+    // Create destination directory if it doesn't exist
+    await fs.mkdir(destFullPath, { recursive: true });
+    
+    await fs.rename(sourceFullPath, newFullPath);
+    res.json({ success: true, message: 'Moved successfully', newPath: path.join(destination, fileName) });
+  } catch (error) {
+    console.error('Error moving file:', error);
+    res.status(500).json({ error: 'Failed to move', details: error.message });
+  }
+});
+
+// Delete file or directory
 app.delete('/api/files/*', requireAuth, async (req, res) => {
   try {
-    // Get the path from the request - remove '/api/files' prefix
-    const filePath = req.path.replace('/api/files/', '') || req.path.replace('/api/files', '');
+    const filePath = parseFilePath(req);
+    const fullPath = validatePath(filePath);
     
-    // Security: prevent path traversal
-    if (filePath.includes('..') || path.isAbsolute(filePath)) {
-      return res.status(400).json({ error: 'Invalid file path' });
-    }
-
-    const fullPath = path.join('/www', filePath);
-    // Ensure the path is within /www directory
-    const resolvedPath = path.resolve(fullPath);
-    if (!resolvedPath.startsWith(path.resolve('/www'))) {
+    if (!fullPath) {
       return res.status(400).json({ error: 'Invalid file path' });
     }
     
-    await fs.unlink(fullPath);
-    res.json({ success: true, message: 'File deleted successfully' });
+    // Check if file/directory exists
+    try {
+      const stats = await fs.stat(fullPath);
+      
+      if (stats.isDirectory()) {
+        // Delete directory recursively
+        await fs.rm(fullPath, { recursive: true, force: true });
+        res.json({ success: true, message: 'Directory deleted successfully' });
+      } else {
+        // Delete file
+        await fs.unlink(fullPath);
+        res.json({ success: true, message: 'File deleted successfully' });
+      }
+    } catch (accessError) {
+      return res.status(404).json({ error: 'File or directory not found' });
+    }
   } catch (error) {
     console.error('Error deleting file:', error);
-    res.status(500).json({ error: 'Failed to delete file' });
+    res.status(500).json({ error: 'Failed to delete', details: error.message });
   }
 });
 
