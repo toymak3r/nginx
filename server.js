@@ -214,21 +214,31 @@ app.get('/api/files', requireAuth, async (req, res) => {
 // Get file content
 app.get('/api/files/*', requireAuth, async (req, res) => {
   try {
-    // Get the path from the request - remove '/api/files' prefix
-    let filePath = req.path.replace('/api/files/', '') || req.path.replace('/api/files', '');
+    // Get the path from the request URL, not req.path (which may have query params stripped)
+    // Use req.url and extract the path part before any actual query parameters
+    let filePath = req.url.replace('/api/files/', '').replace('/api/files', '');
     
-    // URL decode the path
+    // Split on '?' to separate path from query string, but only if it's a real query param
+    // We need to check if the '?' is part of the filename or a query parameter
+    // Query parameters come after the path, so if there's a '?' we need to be careful
+    // For now, get everything before the first '?' that's not part of the encoded path
+    const queryIndex = filePath.indexOf('?');
+    if (queryIndex !== -1) {
+      // Check if this might be part of the filename (if it's not followed by a key=value pattern)
+      const afterQuestion = filePath.substring(queryIndex + 1);
+      // If it looks like a query parameter (has =), then it's a query param, otherwise it's part of filename
+      if (afterQuestion.includes('=')) {
+        filePath = filePath.substring(0, queryIndex);
+      }
+      // Otherwise, the '?' is part of the filename, keep it
+    }
+    
+    // URL decode the path (this will decode %3F back to ?)
     try {
       filePath = decodeURIComponent(filePath);
     } catch (e) {
-      // If decoding fails, use the original path
+      // If decoding fails, try without decoding (might already be decoded)
       console.warn('Failed to decode file path:', filePath);
-    }
-    
-    // Remove query parameters (everything after ?)
-    const queryIndex = filePath.indexOf('?');
-    if (queryIndex !== -1) {
-      filePath = filePath.substring(0, queryIndex);
     }
     
     // Security: prevent path traversal
@@ -254,22 +264,8 @@ app.get('/api/files/*', requireAuth, async (req, res) => {
 // Save file content
 app.post('/api/files/*', requireAuth, async (req, res) => {
   try {
-    // Get the path from the request - remove '/api/files' prefix
-    let filePath = req.path.replace('/api/files/', '') || req.path.replace('/api/files', '');
-    
-    // URL decode the path
-    try {
-      filePath = decodeURIComponent(filePath);
-    } catch (e) {
-      // If decoding fails, use the original path
-      console.warn('Failed to decode file path:', filePath);
-    }
-    
-    // Remove query parameters (everything after ?)
-    const queryIndex = filePath.indexOf('?');
-    if (queryIndex !== -1) {
-      filePath = filePath.substring(0, queryIndex);
-    }
+    // Use parseFilePath helper to properly handle special characters
+    const filePath = parseFilePath(req);
     
     // Security: prevent path traversal
     if (filePath.includes('..') || path.isAbsolute(filePath)) {
@@ -389,19 +385,26 @@ function validatePath(filePath) {
 
 // Helper function to parse file path from request
 function parseFilePath(req) {
-  let filePath = req.path.replace('/api/files/', '').replace('/api/files', '');
+  // Use req.url instead of req.path to preserve special characters
+  let filePath = req.url.replace('/api/files/', '').replace('/api/files', '');
   
-  // URL decode the path
+  // Handle query parameters - only remove if it's a real query param (has =)
+  const queryIndex = filePath.indexOf('?');
+  if (queryIndex !== -1) {
+    const afterQuestion = filePath.substring(queryIndex + 1);
+    // If it looks like a query parameter (has =), then remove it
+    if (afterQuestion.includes('=')) {
+      filePath = filePath.substring(0, queryIndex);
+    }
+    // Otherwise, the '?' is part of the filename, keep it
+  }
+  
+  // URL decode the path (this will decode %3F back to ?)
   try {
     filePath = decodeURIComponent(filePath);
   } catch (e) {
+    // If decoding fails, try without decoding (might already be decoded)
     console.warn('Failed to decode file path:', filePath);
-  }
-  
-  // Remove query parameters
-  const queryIndex = filePath.indexOf('?');
-  if (queryIndex !== -1) {
-    filePath = filePath.substring(0, queryIndex);
   }
   
   return filePath;
