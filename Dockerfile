@@ -13,8 +13,12 @@ RUN npm install
 # Copy application files
 COPY server.js ./
 COPY nginx.conf /etc/nginx/nginx.conf.template
-COPY site /usr/share/nginx/html
+# Copy admin.html to separate location (not in /www bucket)
+COPY site/admin.html /usr/share/nginx/html/admin.html
 COPY start.sh /start.sh
+
+# Create /www directory (bucket will be mounted here by Railway)
+RUN mkdir -p /www
 
 # Install gettext for envsubst
 RUN apk add --no-cache gettext

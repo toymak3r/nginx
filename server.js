@@ -22,10 +22,10 @@ app.use(session({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Configure multer for file uploads
+// Configure multer for file uploads - use /www bucket mount
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
-    const uploadPath = path.join(__dirname, 'site');
+    const uploadPath = '/www';
     try {
       await fs.mkdir(uploadPath, { recursive: true });
       cb(null, uploadPath);
@@ -104,10 +104,10 @@ app.get('/api/auth/status', (req, res) => {
   });
 });
 
-// Get list of files in site directory
+// Get list of files in /www bucket directory
 app.get('/api/files', requireAuth, async (req, res) => {
   try {
-    const siteDir = path.join(__dirname, 'site');
+    const siteDir = '/www';
     const files = await fs.readdir(siteDir, { withFileTypes: true });
     const fileList = await Promise.all(
       files.map(async (file) => {
@@ -137,7 +137,7 @@ app.get('/api/files/:filename', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid filename' });
     }
     
-    const filePath = path.join(__dirname, 'site', filename);
+    const filePath = path.join('/www', filename);
     const content = await fs.readFile(filePath, 'utf8');
     res.json({ content, filename });
   } catch (error) {
@@ -160,7 +160,7 @@ app.post('/api/files/:filename', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Content is required' });
     }
 
-    const filePath = path.join(__dirname, 'site', filename);
+    const filePath = path.join('/www', filename);
     await fs.writeFile(filePath, content, 'utf8');
     res.json({ success: true, message: 'File saved successfully' });
   } catch (error) {
@@ -202,7 +202,7 @@ app.delete('/api/files/:filename', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Cannot delete index.html' });
     }
 
-    const filePath = path.join(__dirname, 'site', filename);
+    const filePath = path.join('/www', filename);
     await fs.unlink(filePath);
     res.json({ success: true, message: 'File deleted successfully' });
   } catch (error) {
