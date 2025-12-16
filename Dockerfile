@@ -13,8 +13,9 @@ RUN npm install
 # Copy application files
 COPY server.js ./
 COPY nginx.conf /etc/nginx/nginx.conf.template
-# Copy admin.html to separate location (not in /www bucket)
+# Copy admin.html and favicon to separate location (not in /www bucket)
 COPY site/admin.html /usr/share/nginx/html/admin.html
+COPY site/favicon.ico /usr/share/nginx/html/favicon.ico
 COPY start.sh /start.sh
 
 # Create /www directory (Railway storage volume will be mounted here)
