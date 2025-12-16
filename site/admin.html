@@ -311,6 +311,73 @@
             background: rgba(167, 139, 250, 0.2);
         }
 
+        .file-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #a78bfa;
+        }
+
+        .file-type {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .bulk-actions {
+            display: none;
+            padding: 0.75rem 1.5rem;
+            background: rgba(167, 139, 250, 0.15);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .bulk-actions.active {
+            display: flex;
+        }
+
+        .bulk-actions-info {
+            flex: 1;
+            color: #a78bfa;
+            font-weight: 500;
+        }
+
+        .bulk-actions-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .bulk-actions button {
+            padding: 0.5rem 1rem;
+            background: rgba(167, 139, 250, 0.2);
+            color: #a78bfa;
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .bulk-actions button:hover {
+            background: rgba(167, 139, 250, 0.3);
+            border-color: #a78bfa;
+        }
+
+        .bulk-actions button.delete {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .bulk-actions button.delete:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: #f87171;
+        }
+
         .file-table td {
             padding: 1rem 1.5rem;
             color: #e0e0e0;
@@ -878,10 +945,22 @@
                         </div>
                         <input type="text" id="fileSearch" class="file-search" placeholder="🔍 Search files..." onkeyup="filterFiles()">
                     </div>
+                    <div id="bulkActions" class="bulk-actions">
+                        <span class="bulk-actions-info" id="bulkActionsInfo">0 files selected</span>
+                        <div class="bulk-actions-buttons">
+                            <button onclick="selectAllFiles()">Select All</button>
+                            <button onclick="deselectAllFiles()">Deselect All</button>
+                            <button class="delete" onclick="deleteSelectedFiles()">🗑️ Delete Selected</button>
+                        </div>
+                    </div>
                     <table class="file-table">
                         <thead>
                             <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="selectAllCheckbox" class="file-checkbox" onchange="toggleSelectAll(this.checked)">
+                                </th>
                                 <th class="sortable" onclick="sortFiles('name')" id="sortName">Name</th>
+                                <th class="sortable" onclick="sortFiles('type')" id="sortType">Type</th>
                                 <th class="sortable" onclick="sortFiles('size')" id="sortSize">Size</th>
                                 <th class="sortable" onclick="sortFiles('date')" id="sortDate">Modified</th>
                                 <th style="text-align: right;">Actions</th>
@@ -889,7 +968,7 @@
                         </thead>
                         <tbody id="fileTableBody">
                             <tr>
-                                <td colspan="4" class="file-empty">Loading files...</td>
+                                <td colspan="6" class="file-empty">Loading files...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1022,6 +1101,7 @@
         let filteredFiles = [];
         let sortColumn = 'name';
         let sortDirection = 'asc';
+        let selectedFiles = new Set();
 
         // Get file type icon
         function getFileType(filename) {
@@ -1034,6 +1114,19 @@
             if (['pdf'].includes(ext)) return 'pdf';
             if (['txt', 'md', 'log'].includes(ext)) return 'text';
             return 'other';
+        }
+
+        // Get file type name for display
+        function getFileTypeName(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            if (['html', 'htm'].includes(ext)) return 'HTML';
+            if (['css'].includes(ext)) return 'CSS';
+            if (['js', 'mjs'].includes(ext)) return 'JavaScript';
+            if (['json'].includes(ext)) return 'JSON';
+            if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'ico'].includes(ext)) return 'Image';
+            if (['pdf'].includes(ext)) return 'PDF';
+            if (['txt', 'md', 'log'].includes(ext)) return 'Text';
+            return ext.toUpperCase() || 'File';
         }
 
         // Format date
@@ -1079,6 +1172,9 @@
                 if (column === 'name') {
                     aVal = a.name.toLowerCase();
                     bVal = b.name.toLowerCase();
+                } else if (column === 'type') {
+                    aVal = getFileTypeName(a.name);
+                    bVal = getFileTypeName(b.name);
                 } else if (column === 'size') {
                     aVal = a.size || 0;
                     bVal = b.size || 0;
@@ -1101,6 +1197,8 @@
             filteredFiles = allFiles.filter(file => 
                 file.name.toLowerCase().includes(searchTerm)
             );
+            // Clear selection when filtering (optional - you can remove this if you want to keep selection)
+            // selectedFiles.clear();
             renderFileTable();
         }
 
@@ -1110,8 +1208,9 @@
             tbody.innerHTML = '';
 
             if (filteredFiles.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="file-empty">No files found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="file-empty">No files found</td></tr>';
                 updateFileStats();
+                updateBulkActions();
                 return;
             }
 
@@ -1119,24 +1218,49 @@
                 if (file.type === 'file') {
                     const tr = document.createElement('tr');
                     const fileType = getFileType(file.name);
+                    const fileTypeName = getFileTypeName(file.name);
+                    const isSelected = selectedFiles.has(file.name);
+                    const escapedName = file.name.replace(/'/g, "\\'");
+                    
+                    if (isSelected) {
+                        tr.classList.add('selected');
+                    }
+                    
                     tr.innerHTML = `
+                        <td>
+                            <input type="checkbox" class="file-checkbox" data-filename="${escapedName}" 
+                                   ${isSelected ? 'checked' : ''} 
+                                   onchange="toggleFileSelection('${escapedName}', this.checked)"
+                                   onclick="event.stopPropagation()">
+                        </td>
                         <td>
                             <div class="file-icon" data-type="${fileType}">
                                 <span class="file-name">${file.name}</span>
                             </div>
                         </td>
+                        <td class="file-type">${fileTypeName}</td>
                         <td class="file-size">${formatSize(file.size || 0)}</td>
                         <td class="file-date">${formatDate(file.modified || new Date())}</td>
                         <td class="file-actions">
-                            <button onclick="editFile('${file.name.replace(/'/g, "\\'")}')" title="Edit">✏️ Edit</button>
-                            ${file.name !== 'index.html' ? `<button class="delete" onclick="deleteFile('${file.name.replace(/'/g, "\\'")}')" title="Delete">🗑️ Delete</button>` : ''}
+                            <button onclick="event.stopPropagation(); editFile('${escapedName}')" title="Edit">✏️ Edit</button>
+                            ${file.name !== 'index.html' ? `<button class="delete" onclick="event.stopPropagation(); deleteFile('${escapedName}')" title="Delete">🗑️ Delete</button>` : ''}
                         </td>
                     `;
+                    
+                    // Add click handler for row selection
+                    tr.addEventListener('click', (e) => {
+                        if (e.target.type !== 'checkbox' && e.target.tagName !== 'BUTTON') {
+                            toggleFileSelection(file.name, !isSelected);
+                        }
+                    });
+                    
                     tbody.appendChild(tr);
                 }
             });
 
             updateFileStats();
+            updateBulkActions();
+            updateSelectAllCheckbox();
         }
 
         // Update file statistics
@@ -1158,13 +1282,134 @@
             } catch (error) {
                 console.error('Failed to load files:', error);
                 document.getElementById('fileTableBody').innerHTML = 
-                    '<tr><td colspan="4" class="file-empty">Error loading files</td></tr>';
+                    '<tr><td colspan="6" class="file-empty">Error loading files</td></tr>';
             }
         }
 
         // Refresh file list
         function refreshFileList() {
+            selectedFiles.clear();
             loadFileList();
+        }
+
+        // Toggle file selection
+        function toggleFileSelection(filename, checked) {
+            if (checked) {
+                selectedFiles.add(filename);
+            } else {
+                selectedFiles.delete(filename);
+            }
+            updateBulkActions();
+            updateSelectAllCheckbox();
+            renderFileTable();
+        }
+
+        // Toggle select all
+        function toggleSelectAll(checked) {
+            filteredFiles.forEach(file => {
+                if (file.type === 'file') {
+                    if (checked) {
+                        selectedFiles.add(file.name);
+                    } else {
+                        selectedFiles.delete(file.name);
+                    }
+                }
+            });
+            updateBulkActions();
+            renderFileTable();
+        }
+
+        // Update select all checkbox state
+        function updateSelectAllCheckbox() {
+            const checkbox = document.getElementById('selectAllCheckbox');
+            if (!checkbox) return;
+            
+            const fileCount = filteredFiles.filter(f => f.type === 'file').length;
+            const selectedCount = filteredFiles.filter(f => f.type === 'file' && selectedFiles.has(f.name)).length;
+            
+            checkbox.checked = fileCount > 0 && selectedCount === fileCount;
+            checkbox.indeterminate = selectedCount > 0 && selectedCount < fileCount;
+        }
+
+        // Select all files
+        function selectAllFiles() {
+            filteredFiles.forEach(file => {
+                if (file.type === 'file') {
+                    selectedFiles.add(file.name);
+                }
+            });
+            updateBulkActions();
+            renderFileTable();
+        }
+
+        // Deselect all files
+        function deselectAllFiles() {
+            filteredFiles.forEach(file => {
+                selectedFiles.delete(file.name);
+            });
+            updateBulkActions();
+            renderFileTable();
+        }
+
+        // Update bulk actions visibility
+        function updateBulkActions() {
+            const bulkActions = document.getElementById('bulkActions');
+            const bulkActionsInfo = document.getElementById('bulkActionsInfo');
+            const selectedCount = Array.from(selectedFiles).length;
+            
+            if (selectedCount > 0) {
+                bulkActions.classList.add('active');
+                bulkActionsInfo.textContent = `${selectedCount} file${selectedCount !== 1 ? 's' : ''} selected`;
+            } else {
+                bulkActions.classList.remove('active');
+            }
+        }
+
+        // Delete selected files
+        async function deleteSelectedFiles() {
+            const filesToDelete = Array.from(selectedFiles);
+            if (filesToDelete.length === 0) return;
+            
+            const fileList = filesToDelete.join(', ');
+            if (!confirm(`Are you sure you want to delete ${filesToDelete.length} file(s)?\n\n${fileList}`)) {
+                return;
+            }
+
+            const progressDiv = document.getElementById('uploadProgress');
+            const statusDiv = document.getElementById('uploadStatus');
+            progressDiv.style.display = 'block';
+            statusDiv.innerHTML = `Deleting ${filesToDelete.length} file(s)...`;
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const filename of filesToDelete) {
+                try {
+                    const response = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (response.ok) {
+                        successCount++;
+                        selectedFiles.delete(filename);
+                    } else {
+                        failCount++;
+                    }
+                } catch (error) {
+                    console.error(`Failed to delete ${filename}:`, error);
+                    failCount++;
+                }
+            }
+
+            progressDiv.style.display = 'none';
+            updateBulkActions();
+            loadFileList();
+
+            if (failCount === 0) {
+                alert(`Successfully deleted ${successCount} file(s)`);
+            } else {
+                alert(`Deleted ${successCount} file(s), ${failCount} failed`);
+            }
         }
 
         // Initialize WYSIWYG editor
