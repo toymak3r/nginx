@@ -417,6 +417,16 @@
             font-family: monospace;
         }
 
+        .file-path {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+            font-family: 'Courier New', monospace;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         .file-date {
             color: rgba(255, 255, 255, 0.6);
             font-size: 0.9rem;
@@ -960,6 +970,7 @@
                                     <input type="checkbox" id="selectAllCheckbox" class="file-checkbox" onchange="toggleSelectAll(this.checked)">
                                 </th>
                                 <th class="sortable" onclick="sortFiles('name')" id="sortName">Name</th>
+                                <th class="sortable" onclick="sortFiles('path')" id="sortPath">Path</th>
                                 <th class="sortable" onclick="sortFiles('type')" id="sortType">Type</th>
                                 <th class="sortable" onclick="sortFiles('size')" id="sortSize">Size</th>
                                 <th class="sortable" onclick="sortFiles('date')" id="sortDate">Modified</th>
@@ -968,7 +979,7 @@
                         </thead>
                         <tbody id="fileTableBody">
                             <tr>
-                                <td colspan="6" class="file-empty">Loading files...</td>
+                                <td colspan="7" class="file-empty">Loading files...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1172,6 +1183,9 @@
                 if (column === 'name') {
                     aVal = a.name.toLowerCase();
                     bVal = b.name.toLowerCase();
+                } else if (column === 'path') {
+                    aVal = (a.path || a.name).toLowerCase();
+                    bVal = (b.path || b.name).toLowerCase();
                 } else if (column === 'type') {
                     aVal = getFileTypeName(a.name);
                     bVal = getFileTypeName(b.name);
@@ -1195,7 +1209,8 @@
         function filterFiles() {
             const searchTerm = document.getElementById('fileSearch').value.toLowerCase();
             filteredFiles = allFiles.filter(file => 
-                file.name.toLowerCase().includes(searchTerm)
+                file.name.toLowerCase().includes(searchTerm) ||
+                (file.path && file.path.toLowerCase().includes(searchTerm))
             );
             // Clear selection when filtering (optional - you can remove this if you want to keep selection)
             // selectedFiles.clear();
@@ -1208,7 +1223,7 @@
             tbody.innerHTML = '';
 
             if (filteredFiles.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="file-empty">No files found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="file-empty">No files found</td></tr>';
                 updateFileStats();
                 updateBulkActions();
                 return;
@@ -1226,11 +1241,15 @@
                         tr.classList.add('selected');
                     }
                     
+                    const filePath = file.path || file.name;
+                    const displayPath = filePath === file.name ? '/' : '/' + filePath.replace(/\\/g, '/');
+                    const escapedPath = filePath.replace(/'/g, "\\'");
+                    
                     tr.innerHTML = `
                         <td>
-                            <input type="checkbox" class="file-checkbox" data-filename="${escapedName}" 
+                            <input type="checkbox" class="file-checkbox" data-filename="${escapedPath}" 
                                    ${isSelected ? 'checked' : ''} 
-                                   onchange="toggleFileSelection('${escapedName}', this.checked)"
+                                   onchange="toggleFileSelection('${escapedPath}', this.checked)"
                                    onclick="event.stopPropagation()">
                         </td>
                         <td>
@@ -1238,19 +1257,20 @@
                                 <span class="file-name">${file.name}</span>
                             </div>
                         </td>
+                        <td class="file-path" title="${displayPath}">${displayPath}</td>
                         <td class="file-type">${fileTypeName}</td>
                         <td class="file-size">${formatSize(file.size || 0)}</td>
                         <td class="file-date">${formatDate(file.modified || new Date())}</td>
                         <td class="file-actions">
-                            <button onclick="event.stopPropagation(); editFile('${escapedName}')" title="Edit">✏️ Edit</button>
-                            ${file.name !== 'index.html' ? `<button class="delete" onclick="event.stopPropagation(); deleteFile('${escapedName}')" title="Delete">🗑️ Delete</button>` : ''}
+                            <button onclick="event.stopPropagation(); editFile('${escapedPath}')" title="Edit">✏️ Edit</button>
+                            ${file.name !== 'index.html' ? `<button class="delete" onclick="event.stopPropagation(); deleteFile('${escapedPath}')" title="Delete">🗑️ Delete</button>` : ''}
                         </td>
                     `;
                     
                     // Add click handler for row selection
                     tr.addEventListener('click', (e) => {
                         if (e.target.type !== 'checkbox' && e.target.tagName !== 'BUTTON') {
-                            toggleFileSelection(file.name, !isSelected);
+                            toggleFileSelection(filePath, !isSelected);
                         }
                     });
                     
@@ -1282,7 +1302,7 @@
             } catch (error) {
                 console.error('Failed to load files:', error);
                 document.getElementById('fileTableBody').innerHTML = 
-                    '<tr><td colspan="6" class="file-empty">Error loading files</td></tr>';
+                    '<tr><td colspan="7" class="file-empty">Error loading files</td></tr>';
             }
         }
 
@@ -1308,10 +1328,11 @@
         function toggleSelectAll(checked) {
             filteredFiles.forEach(file => {
                 if (file.type === 'file') {
+                    const filePath = file.path || file.name;
                     if (checked) {
-                        selectedFiles.add(file.name);
+                        selectedFiles.add(filePath);
                     } else {
-                        selectedFiles.delete(file.name);
+                        selectedFiles.delete(filePath);
                     }
                 }
             });
@@ -1325,7 +1346,11 @@
             if (!checkbox) return;
             
             const fileCount = filteredFiles.filter(f => f.type === 'file').length;
-            const selectedCount = filteredFiles.filter(f => f.type === 'file' && selectedFiles.has(f.name)).length;
+            const selectedCount = filteredFiles.filter(f => {
+                if (f.type !== 'file') return false;
+                const filePath = f.path || f.name;
+                return selectedFiles.has(filePath);
+            }).length;
             
             checkbox.checked = fileCount > 0 && selectedCount === fileCount;
             checkbox.indeterminate = selectedCount > 0 && selectedCount < fileCount;
@@ -1335,7 +1360,8 @@
         function selectAllFiles() {
             filteredFiles.forEach(file => {
                 if (file.type === 'file') {
-                    selectedFiles.add(file.name);
+                    const filePath = file.path || file.name;
+                    selectedFiles.add(filePath);
                 }
             });
             updateBulkActions();
@@ -1345,7 +1371,8 @@
         // Deselect all files
         function deselectAllFiles() {
             filteredFiles.forEach(file => {
-                selectedFiles.delete(file.name);
+                const filePath = file.path || file.name;
+                selectedFiles.delete(filePath);
             });
             updateBulkActions();
             renderFileTable();

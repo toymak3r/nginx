@@ -152,23 +152,43 @@ app.get('/api/auth/status', (req, res) => {
   });
 });
 
-// Get list of files in /www bucket directory
+// Recursively get all files in a directory
+async function getAllFiles(dir, baseDir = dir) {
+  const files = [];
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, '/');
+      
+      if (entry.isDirectory()) {
+        // Recursively get files from subdirectories
+        const subFiles = await getAllFiles(fullPath, baseDir);
+        files.push(...subFiles);
+      } else {
+        const stats = await fs.stat(fullPath);
+        files.push({
+          name: entry.name,
+          path: relativePath,
+          type: 'file',
+          size: stats.size,
+          modified: stats.mtime
+        });
+      }
+    }
+  } catch (error) {
+    console.error(`Error reading directory ${dir}:`, error);
+  }
+  
+  return files;
+}
+
+// Get list of files in /www bucket directory (recursively)
 app.get('/api/files', requireAuth, async (req, res) => {
   try {
     const siteDir = '/www';
-    const files = await fs.readdir(siteDir, { withFileTypes: true });
-    const fileList = await Promise.all(
-      files.map(async (file) => {
-        const filePath = path.join(siteDir, file.name);
-        const stats = await fs.stat(filePath);
-        return {
-          name: file.name,
-          type: file.isDirectory() ? 'directory' : 'file',
-          size: stats.size,
-          modified: stats.mtime
-        };
-      })
-    );
+    const fileList = await getAllFiles(siteDir, siteDir);
     res.json(fileList);
   } catch (error) {
     console.error('Error reading files:', error);
@@ -177,17 +197,25 @@ app.get('/api/files', requireAuth, async (req, res) => {
 });
 
 // Get file content
-app.get('/api/files/:filename', requireAuth, async (req, res) => {
+app.get('/api/files/*', requireAuth, async (req, res) => {
   try {
-    const filename = req.params.filename;
+    // Get the path from the request - remove '/api/files' prefix
+    const filePath = req.path.replace('/api/files/', '') || req.path.replace('/api/files', '');
+    
     // Security: prevent path traversal
-    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-      return res.status(400).json({ error: 'Invalid filename' });
+    if (filePath.includes('..') || path.isAbsolute(filePath)) {
+      return res.status(400).json({ error: 'Invalid file path' });
     }
     
-    const filePath = path.join('/www', filename);
-    const content = await fs.readFile(filePath, 'utf8');
-    res.json({ content, filename });
+    const fullPath = path.join('/www', filePath);
+    // Ensure the path is within /www directory
+    const resolvedPath = path.resolve(fullPath);
+    if (!resolvedPath.startsWith(path.resolve('/www'))) {
+      return res.status(400).json({ error: 'Invalid file path' });
+    }
+    
+    const content = await fs.readFile(fullPath, 'utf8');
+    res.json({ content, filename: filePath });
   } catch (error) {
     console.error('Error reading file:', error);
     res.status(500).json({ error: 'Failed to read file' });
@@ -195,12 +223,14 @@ app.get('/api/files/:filename', requireAuth, async (req, res) => {
 });
 
 // Save file content
-app.post('/api/files/:filename', requireAuth, async (req, res) => {
+app.post('/api/files/*', requireAuth, async (req, res) => {
   try {
-    const filename = req.params.filename;
+    // Get the path from the request - remove '/api/files' prefix
+    const filePath = req.path.replace('/api/files/', '') || req.path.replace('/api/files', '');
+    
     // Security: prevent path traversal
-    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-      return res.status(400).json({ error: 'Invalid filename' });
+    if (filePath.includes('..') || path.isAbsolute(filePath)) {
+      return res.status(400).json({ error: 'Invalid file path' });
     }
 
     const { content } = req.body;
@@ -208,8 +238,16 @@ app.post('/api/files/:filename', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Content is required' });
     }
 
-    const filePath = path.join('/www', filename);
-    await fs.writeFile(filePath, content, 'utf8');
+    const fullPath = path.join('/www', filePath);
+    // Ensure the path is within /www directory
+    const resolvedPath = path.resolve(fullPath);
+    if (!resolvedPath.startsWith(path.resolve('/www'))) {
+      return res.status(400).json({ error: 'Invalid file path' });
+    }
+    
+    // Create directory if it doesn't exist
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.writeFile(fullPath, content, 'utf8');
     res.json({ success: true, message: 'File saved successfully' });
   } catch (error) {
     console.error('Error saving file:', error);
@@ -289,21 +327,29 @@ app.post('/api/upload', requireAuth, (req, res, next) => {
 });
 
 // Delete file
-app.delete('/api/files/:filename', requireAuth, async (req, res) => {
+app.delete('/api/files/*', requireAuth, async (req, res) => {
   try {
-    const filename = req.params.filename;
-    // Security: prevent path traversal and deletion of critical files
-    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-      return res.status(400).json({ error: 'Invalid filename' });
+    // Get the path from the request - remove '/api/files' prefix
+    const filePath = req.path.replace('/api/files/', '') || req.path.replace('/api/files', '');
+    
+    // Security: prevent path traversal
+    if (filePath.includes('..') || path.isAbsolute(filePath)) {
+      return res.status(400).json({ error: 'Invalid file path' });
     }
     
-    // Prevent deletion of index.html
-    if (filename === 'index.html') {
+    // Prevent deletion of index.html (in root or any subdirectory)
+    if (filePath === 'index.html' || filePath.endsWith('/index.html')) {
       return res.status(400).json({ error: 'Cannot delete index.html' });
     }
 
-    const filePath = path.join('/www', filename);
-    await fs.unlink(filePath);
+    const fullPath = path.join('/www', filePath);
+    // Ensure the path is within /www directory
+    const resolvedPath = path.resolve(fullPath);
+    if (!resolvedPath.startsWith(path.resolve('/www'))) {
+      return res.status(400).json({ error: 'Invalid file path' });
+    }
+    
+    await fs.unlink(fullPath);
     res.json({ success: true, message: 'File deleted successfully' });
   } catch (error) {
     console.error('Error deleting file:', error);
