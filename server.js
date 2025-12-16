@@ -30,6 +30,7 @@ const storage = multer.diskStorage({
     
     // Check if originalname contains a path (directory upload)
     // When using FormData.append(file, webkitRelativePath), the path becomes part of originalname
+    // Example: uploading "imgs/" folder with "photo.jpg" inside results in originalname = "imgs/photo.jpg"
     const originalPath = file.originalname;
     
     // If originalname contains path separators, it's a directory upload
@@ -37,6 +38,8 @@ const storage = multer.diskStorage({
       // Normalize path separators
       const normalizedPath = originalPath.replace(/\\/g, '/');
       // Extract directory path (remove filename)
+      // Example: "imgs/photo.jpg" -> dirPath = "imgs"
+      // Example: "imgs/subfolder/photo.jpg" -> dirPath = "imgs/subfolder"
       const dirPath = path.dirname(normalizedPath);
       
       // Skip if it's just '.' (root directory)
@@ -44,7 +47,10 @@ const storage = multer.diskStorage({
         const fullDirPath = path.join(basePath, dirPath);
         // Use fs.promises but handle it synchronously with .then/.catch
         fs.mkdir(fullDirPath, { recursive: true })
-          .then(() => cb(null, fullDirPath))
+          .then(() => {
+            console.log(`Creating directory structure: ${fullDirPath} for file: ${path.basename(normalizedPath)}`);
+            cb(null, fullDirPath);
+          })
           .catch((error) => {
             console.error('Error creating directory:', fullDirPath, error);
             cb(error, fullDirPath);
@@ -81,7 +87,7 @@ const upload = multer({
   storage: storage,
   limits: { 
     fileSize: 100 * 1024 * 1024, // 100MB limit per file
-    files: 100 // Maximum number of files in a single request
+    files: 500 // Maximum number of files in a single request
   }
 });
 
@@ -219,7 +225,7 @@ const handleMulterError = (err, req, res, next) => {
       return res.status(413).json({ error: `File too large. Maximum size is 100MB. File: ${err.field}` });
     }
     if (err.code === 'LIMIT_FILE_COUNT') {
-      return res.status(400).json({ error: 'Too many files. Maximum is 100 files per upload.' });
+      return res.status(400).json({ error: 'Too many files. Maximum is 500 files per upload.' });
     }
     if (err.code === 'LIMIT_UNEXPECTED_FILE') {
       return res.status(400).json({ error: 'Unexpected file field.' });
@@ -235,7 +241,7 @@ const handleMulterError = (err, req, res, next) => {
 
 // Upload file(s) - supports single files, multiple files, and directory uploads
 app.post('/api/upload', requireAuth, (req, res, next) => {
-  upload.array('files', 100)(req, res, (err) => {
+  upload.array('files', 500)(req, res, (err) => {
     if (err) {
       return handleMulterError(err, req, res, next);
     }

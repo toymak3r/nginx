@@ -192,67 +192,223 @@
             display: block;
         }
 
-        /* File List */
-        .file-list {
-            list-style: none;
-            padding: 0;
-            display: grid;
-            gap: 0.75rem;
-        }
-
-        .file-item {
-            padding: 1.25rem;
+        /* File Browser - FTP Style */
+        .file-browser {
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .file-browser-header {
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            transition: all 0.3s ease;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
-        .file-item:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(167, 139, 250, 0.3);
-            transform: translateX(4px);
-        }
-
-        .file-item span {
-            font-weight: 500;
-            color: #e0e0e0;
-        }
-
-        .file-item .actions {
+        .file-browser-toolbar {
             display: flex;
             gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
-        .file-item button {
+        .file-browser-toolbar button {
             padding: 0.5rem 1rem;
             background: rgba(167, 139, 250, 0.2);
             color: #a78bfa;
             border: 1px solid rgba(167, 139, 250, 0.3);
             border-radius: 6px;
             cursor: pointer;
+            font-size: 0.9rem;
             font-weight: 500;
             transition: all 0.3s ease;
         }
 
-        .file-item button:hover {
+        .file-browser-toolbar button:hover {
+            background: rgba(167, 139, 250, 0.3);
+            border-color: #a78bfa;
+        }
+
+        .file-search {
+            padding: 0.5rem 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 0.9rem;
+            min-width: 200px;
+        }
+
+        .file-search:focus {
+            outline: none;
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+        }
+
+        .file-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .file-table thead {
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .file-table th {
+            padding: 1rem 1.5rem;
+            text-align: left;
+            font-weight: 600;
+            color: #a78bfa;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        .file-table th:hover {
+            background: rgba(167, 139, 250, 0.1);
+        }
+
+        .file-table th.sortable::after {
+            content: ' ↕';
+            opacity: 0.5;
+            margin-left: 0.5rem;
+        }
+
+        .file-table th.sort-asc::after {
+            content: ' ↑';
+            opacity: 1;
+            color: #a78bfa;
+        }
+
+        .file-table th.sort-desc::after {
+            content: ' ↓';
+            opacity: 1;
+            color: #a78bfa;
+        }
+
+        .file-table tbody tr {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .file-table tbody tr:hover {
+            background: rgba(167, 139, 250, 0.1);
+        }
+
+        .file-table tbody tr.selected {
+            background: rgba(167, 139, 250, 0.2);
+        }
+
+        .file-table td {
+            padding: 1rem 1.5rem;
+            color: #e0e0e0;
+            vertical-align: middle;
+        }
+
+        .file-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 500;
+        }
+
+        .file-icon::before {
+            font-size: 1.25rem;
+            width: 1.5rem;
+            text-align: center;
+        }
+
+        .file-icon[data-type="html"]::before { content: '🌐'; }
+        .file-icon[data-type="css"]::before { content: '🎨'; }
+        .file-icon[data-type="js"]::before { content: '⚡'; }
+        .file-icon[data-type="json"]::before { content: '📋'; }
+        .file-icon[data-type="image"]::before { content: '🖼️'; }
+        .file-icon[data-type="pdf"]::before { content: '📄'; }
+        .file-icon[data-type="text"]::before { content: '📝'; }
+        .file-icon[data-type="other"]::before { content: '📎'; }
+
+        .file-name {
+            font-weight: 500;
+            color: #e0e0e0;
+        }
+
+        .file-size {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+            font-family: monospace;
+        }
+
+        .file-date {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+
+        .file-actions button {
+            padding: 0.4rem 0.8rem;
+            background: rgba(167, 139, 250, 0.2);
+            color: #a78bfa;
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            opacity: 0;
+        }
+
+        .file-table tbody tr:hover .file-actions button {
+            opacity: 1;
+        }
+
+        .file-actions button:hover {
             background: rgba(167, 139, 250, 0.3);
             border-color: #a78bfa;
             transform: translateY(-1px);
         }
 
-        .file-item button.delete {
+        .file-actions button.delete {
             background: rgba(239, 68, 68, 0.2);
             color: #f87171;
             border-color: rgba(239, 68, 68, 0.3);
         }
 
-        .file-item button.delete:hover {
+        .file-actions button.delete:hover {
             background: rgba(239, 68, 68, 0.3);
             border-color: #f87171;
+        }
+
+        .file-empty {
+            padding: 3rem;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .file-stats {
+            padding: 0.75rem 1.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
         }
 
         /* Editor Container */
@@ -715,8 +871,33 @@
 
             <!-- Edit Files Tab -->
             <div id="editTab" class="tab-content active">
-                <h2>Select a file to edit:</h2>
-                <ul id="fileList" class="file-list"></ul>
+                <div class="file-browser">
+                    <div class="file-browser-header">
+                        <div class="file-browser-toolbar">
+                            <button onclick="refreshFileList()" title="Refresh">🔄 Refresh</button>
+                        </div>
+                        <input type="text" id="fileSearch" class="file-search" placeholder="🔍 Search files..." onkeyup="filterFiles()">
+                    </div>
+                    <table class="file-table">
+                        <thead>
+                            <tr>
+                                <th class="sortable" onclick="sortFiles('name')" id="sortName">Name</th>
+                                <th class="sortable" onclick="sortFiles('size')" id="sortSize">Size</th>
+                                <th class="sortable" onclick="sortFiles('date')" id="sortDate">Modified</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileTableBody">
+                            <tr>
+                                <td colspan="4" class="file-empty">Loading files...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="file-stats">
+                        <span id="fileCount">0 files</span>
+                        <span id="totalSize">0 bytes</span>
+                    </div>
+                </div>
                 <div id="editorContainer" class="editor-container" style="display: none;">
                     <div class="editor-header">
                         <h3 id="editorTitle"></h3>
@@ -837,36 +1018,153 @@
             document.getElementById('adminPanel').classList.add('active');
         }
 
+        let allFiles = [];
+        let filteredFiles = [];
+        let sortColumn = 'name';
+        let sortDirection = 'asc';
+
+        // Get file type icon
+        function getFileType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            if (['html', 'htm'].includes(ext)) return 'html';
+            if (['css'].includes(ext)) return 'css';
+            if (['js', 'mjs'].includes(ext)) return 'js';
+            if (['json'].includes(ext)) return 'json';
+            if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'ico'].includes(ext)) return 'image';
+            if (['pdf'].includes(ext)) return 'pdf';
+            if (['txt', 'md', 'log'].includes(ext)) return 'text';
+            return 'other';
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = now - date;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            
+            if (days === 0) {
+                return 'Today ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            } else if (days === 1) {
+                return 'Yesterday ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            } else if (days < 7) {
+                return days + ' days ago';
+            } else {
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+            }
+        }
+
+        // Sort files
+        function sortFiles(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+
+            // Update sort indicators
+            document.querySelectorAll('.file-table th').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+            });
+
+            const th = document.getElementById('sort' + column.charAt(0).toUpperCase() + column.slice(1));
+            if (th) {
+                th.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+            }
+
+            filteredFiles.sort((a, b) => {
+                let aVal, bVal;
+                
+                if (column === 'name') {
+                    aVal = a.name.toLowerCase();
+                    bVal = b.name.toLowerCase();
+                } else if (column === 'size') {
+                    aVal = a.size || 0;
+                    bVal = b.size || 0;
+                } else if (column === 'date') {
+                    aVal = new Date(a.modified || 0);
+                    bVal = new Date(b.modified || 0);
+                }
+
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            renderFileTable();
+        }
+
+        // Filter files
+        function filterFiles() {
+            const searchTerm = document.getElementById('fileSearch').value.toLowerCase();
+            filteredFiles = allFiles.filter(file => 
+                file.name.toLowerCase().includes(searchTerm)
+            );
+            renderFileTable();
+        }
+
+        // Render file table
+        function renderFileTable() {
+            const tbody = document.getElementById('fileTableBody');
+            tbody.innerHTML = '';
+
+            if (filteredFiles.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="file-empty">No files found</td></tr>';
+                updateFileStats();
+                return;
+            }
+
+            filteredFiles.forEach(file => {
+                if (file.type === 'file') {
+                    const tr = document.createElement('tr');
+                    const fileType = getFileType(file.name);
+                    tr.innerHTML = `
+                        <td>
+                            <div class="file-icon" data-type="${fileType}">
+                                <span class="file-name">${file.name}</span>
+                            </div>
+                        </td>
+                        <td class="file-size">${formatSize(file.size || 0)}</td>
+                        <td class="file-date">${formatDate(file.modified || new Date())}</td>
+                        <td class="file-actions">
+                            <button onclick="editFile('${file.name.replace(/'/g, "\\'")}')" title="Edit">✏️ Edit</button>
+                            ${file.name !== 'index.html' ? `<button class="delete" onclick="deleteFile('${file.name.replace(/'/g, "\\'")}')" title="Delete">🗑️ Delete</button>` : ''}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            });
+
+            updateFileStats();
+        }
+
+        // Update file statistics
+        function updateFileStats() {
+            const count = filteredFiles.filter(f => f.type === 'file').length;
+            const totalSize = filteredFiles.reduce((sum, file) => sum + (file.size || 0), 0);
+            
+            document.getElementById('fileCount').textContent = `${count} file${count !== 1 ? 's' : ''}`;
+            document.getElementById('totalSize').textContent = formatSize(totalSize);
+        }
+
         // Load file list
         async function loadFileList() {
             try {
                 const response = await fetch('/api/files');
-                const files = await response.json();
-                const fileList = document.getElementById('fileList');
-                fileList.innerHTML = '';
-
-                if (files.length === 0) {
-                    fileList.innerHTML = '<li style="padding: 2rem; text-align: center; color: rgba(255,255,255,0.5);">No files found</li>';
-                    return;
-                }
-
-                files.forEach(file => {
-                    if (file.type === 'file') {
-                        const li = document.createElement('li');
-                        li.className = 'file-item';
-                        li.innerHTML = `
-                            <span>📄 ${file.name} <small style="color: rgba(255,255,255,0.5);">(${formatSize(file.size)})</small></span>
-                            <div class="actions">
-                                <button onclick="editFile('${file.name}')">Edit</button>
-                                ${file.name !== 'index.html' ? `<button class="delete" onclick="deleteFile('${file.name}')">Delete</button>` : ''}
-                            </div>
-                        `;
-                        fileList.appendChild(li);
-                    }
-                });
+                allFiles = await response.json();
+                filteredFiles = [...allFiles];
+                sortFiles(sortColumn);
             } catch (error) {
                 console.error('Failed to load files:', error);
+                document.getElementById('fileTableBody').innerHTML = 
+                    '<tr><td colspan="4" class="file-empty">Error loading files</td></tr>';
             }
+        }
+
+        // Refresh file list
+        function refreshFileList() {
+            loadFileList();
         }
 
         // Initialize WYSIWYG editor
