@@ -12,9 +12,12 @@ RUN npm install
 
 # Copy application files
 COPY server.js ./
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY nginx.conf /etc/nginx/nginx.conf.template
 COPY site /usr/share/nginx/html
 COPY start.sh /start.sh
+
+# Install gettext for envsubst
+RUN apk add --no-cache gettext
 
 # Make start script executable
 RUN chmod +x /start.sh
